@@ -1,5 +1,8 @@
 use super::*;
-use std::{fs::File, os::unix::fs::FileExt};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+};
 
 const O_DIRECTORY: u32 = 0x4000;
 
@@ -27,7 +30,10 @@ impl OpenFile {
         let node = self.node.borrow();
         Ok(match &node.data {
             Data::Bytes(bytes) | Data::Generated(bytes) => bytes.len() as u64,
-            Data::Host(_) => self.host.as_ref().unwrap().metadata()?.len(),
+            Data::Host(path) => match &self.host {
+                Some(file) => file.metadata()?.len(),
+                None => std::fs::metadata(path)?.len(),
+            },
             _ => 0,
         })
     }
@@ -55,7 +61,13 @@ impl OpenFile {
                 buffer[..count].copy_from_slice(&bytes[start..start + count]);
                 Ok(count)
             }
-            Data::Host(_) => Ok(self.host.as_ref().unwrap().read_at(buffer, offset)?),
+            Data::Host(_) => {
+                // OpenFile is Rc-owned and cannot be accessed concurrently.
+                // Guest positions are explicit, so the host cursor is private.
+                let mut file = self.host.as_ref().unwrap();
+                file.seek(SeekFrom::Start(offset))?;
+                Ok(file.read(buffer)?)
+            }
             Data::Standard(_) => Ok(0),
             _ => Err(Error(22)),
         }
@@ -181,7 +193,7 @@ impl Emulator {
             }
         }
         let host = match &node.borrow().data {
-            Data::Host(path) => Some(File::open(path)?),
+            Data::Host(path) if !node.borrow().is_dir() => Some(File::open(path)?),
             _ => None,
         };
         let entries = if node.borrow().is_dir() {

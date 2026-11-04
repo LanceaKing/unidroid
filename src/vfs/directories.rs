@@ -1,5 +1,4 @@
 use super::*;
-use std::os::unix::ffi::OsStrExt;
 
 #[derive(Clone)]
 pub(super) struct DirEntry {
@@ -19,7 +18,7 @@ impl Emulator {
             {
                 for entry in std::fs::read_dir(host)? {
                     let entry = entry?;
-                    let name = entry.file_name().as_bytes().to_vec();
+                    let name = host::name_bytes(&entry.file_name())?;
                     let child = resolution::normalize(&format!(
                         "{path}/{}",
                         entry.file_name().to_string_lossy()

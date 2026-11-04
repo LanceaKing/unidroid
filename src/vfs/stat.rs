@@ -1,5 +1,6 @@
 use super::*;
 use crate::{Architecture, arch::Stat};
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
 impl Node {
@@ -20,11 +21,6 @@ impl Node {
                 fields.size = target.len() as u64;
                 fields
             }
-            Data::Random => host_stat(
-                &std::fs::metadata("/dev/urandom").map_err(Error::from)?,
-                path,
-                fixed,
-            ),
             data => {
                 let generated = matches!(data, Data::Generated(_));
                 let size = match data {
@@ -50,7 +46,12 @@ impl Node {
                     nlink: u64::from(!generated),
                     uid: 0,
                     gid: 0,
-                    rdev: 0,
+                    // Linux device numbers for the virtual random devices.
+                    rdev: if matches!(data, Data::Random) {
+                        if path == "/dev/random" { 0x108 } else { 0x109 }
+                    } else {
+                        0
+                    },
                     size,
                     blksize: 4096,
                     blocks: size.div_ceil(if generated { 4096 } else { 512 }),
@@ -62,6 +63,7 @@ impl Node {
     }
 }
 fn host_stat(m: &std::fs::Metadata, path: &str, fixed_clock: Option<i64>) -> Stat {
+    #[cfg(unix)]
     let mut fields = Stat {
         dev: m.dev(),
         ino: m.ino(),
@@ -82,12 +84,14 @@ fn host_stat(m: &std::fs::Metadata, path: &str, fixed_clock: Option<i64>) -> Sta
             m.ctime_nsec(),
         ],
     };
+    #[cfg(windows)]
+    let mut fields = host::stat(m, path);
     if let Some(seconds) = fixed_clock {
         fields.dev = 0;
         fields.ino = inode(path.as_bytes());
         fields.uid = 0;
         fields.gid = 0;
-        fields.blocks = m.size().div_ceil(512);
+        fields.blocks = m.len().div_ceil(512);
         fields.times = [seconds, 0, seconds, 0, seconds, 0];
     }
     fields

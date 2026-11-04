@@ -8,7 +8,7 @@ repository = "https://github.com/zhoupb01/unidroid"
 readme = "README.md"
 keywords = ["android", "emulator", "unicorn", "jni", "unidbg"]
 categories = ["emulators", "development-tools"]
-include = ["/src", "/README.md", "/DEBUGGING.md", "/ENVIRONMENT.md", "/LICENSE", "/NOTICE", "/Cargo.toml"]
+include = ["/src", "/README.md", "/DEBUGGING.md", "/ENVIRONMENT.md", "/LICENSE", "/NOTICE", "/Cargo.toml", "/build.rs"]
 
 [profile.release]
 lto = true
@@ -18,6 +18,7 @@ codegen-units = 1
 base64 = "0.23.1"
 capstone = { version = "0.14.0", default-features = false, features = ["std", "full", "arch_arm", "arch_arm64"] }
 clap = { version = "4.6.7", features = ["derive"] }
+getrandom = { version = "0.4", features = ["std"] }
 goblin = "0.10.7"
 libc = "0.2.190"
 md-5 = "0.11.0"
@@ -28,3 +29,6 @@ sha1 = "0.11.0"
 sha2 = "0.11.1"
 unicorn-engine = { version = "2.1.5", default-features = false, features = ["arch_aarch64", "arch_arm"] }
 zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Performance"] }

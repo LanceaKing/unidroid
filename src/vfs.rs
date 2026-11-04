@@ -1,5 +1,4 @@
 use crate::{Emulator, Result};
-use std::os::unix::fs::MetadataExt;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
@@ -11,6 +10,7 @@ mod checkpoint;
 mod descriptors;
 mod directories;
 mod fcntl;
+mod host;
 mod io;
 mod links;
 mod overlay;
@@ -181,7 +181,7 @@ impl Emulator {
             .map_err(|error| format!("{path}: {error}"))?;
         self.vfs
             .overlay
-            .insert(path, Node::new(Data::Host(host), metadata.mode()));
+            .insert(path, Node::new(Data::Host(host), host::mode(&metadata)));
         Ok(())
     }
     /// Hide a guest path and its descendants, including entries in lower layers.

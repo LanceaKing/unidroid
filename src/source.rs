@@ -1,6 +1,6 @@
 use crate::{Architecture, CpuData, Result};
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, fs::File, io::Read, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 use unicorn_engine::{Arm64Insn, RegisterARM64, RegisterARM64CP, UcHookId, Unicorn};
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -81,7 +81,6 @@ pub(crate) struct Source {
 #[derive(Default)]
 pub(crate) struct Inputs {
     pub mode: Mode,
-    random: Option<File>,
     pub state: State,
 }
 impl Source {
@@ -177,24 +176,7 @@ impl Inputs {
             self.state.elapsed_ns += 1_000;
             time
         } else {
-            let mut time = libc::timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            };
-            unsafe {
-                libc::clock_gettime(
-                    match clock {
-                        Clock::Realtime => libc::CLOCK_REALTIME,
-                        Clock::Monotonic => libc::CLOCK_MONOTONIC,
-                    },
-                    &mut time,
-                );
-            }
-            Time {
-                clock,
-                sec: time.tv_sec,
-                nsec: time.tv_nsec,
-            }
+            host_time(clock)?
         };
         if let Mode::Recording(recorder) = &mut self.mode {
             recorder.record_time(time)?;
@@ -211,16 +193,57 @@ impl Inputs {
             random.fill(buffer);
             buffer.len()
         } else {
-            if self.random.is_none() {
-                self.random = Some(File::open("/dev/urandom")?);
-            }
-            self.random.as_mut().unwrap().read(buffer)?
+            getrandom::fill(buffer)?;
+            buffer.len()
         };
         if let Mode::Recording(recorder) = &mut self.mode {
             recorder.record_random(&buffer[..count])?;
         }
         Ok(count)
     }
+}
+
+fn host_time(clock: Clock) -> Result<Time> {
+    if clock == Clock::Realtime {
+        let elapsed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?;
+        return Ok(Time {
+            clock,
+            sec: elapsed.as_secs().try_into()?,
+            nsec: elapsed.subsec_nanos().into(),
+        });
+    }
+    let (sec, nsec) = host_monotonic()?;
+    Ok(Time { clock, sec, nsec })
+}
+
+#[cfg(unix)]
+fn host_monotonic() -> Result<(i64, i64)> {
+    let mut time = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut time) } != 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    Ok((time.tv_sec, time.tv_nsec))
+}
+
+#[cfg(windows)]
+fn host_monotonic() -> Result<(i64, i64)> {
+    use windows_sys::Win32::System::Performance::{
+        QueryPerformanceCounter, QueryPerformanceFrequency,
+    };
+    let (mut ticks, mut frequency) = (0, 0);
+    if unsafe { QueryPerformanceCounter(&mut ticks) } == 0
+        || unsafe { QueryPerformanceFrequency(&mut frequency) } == 0
+    {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    if ticks < 0 || frequency <= 0 {
+        return Err("invalid host monotonic clock".into());
+    }
+    let nanos = i128::from(ticks % frequency) * 1_000_000_000 / i128::from(frequency);
+    Ok((ticks / frequency, nanos.try_into()?))
 }
 
 #[cfg(test)]

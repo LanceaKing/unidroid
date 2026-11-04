@@ -25,7 +25,9 @@ impl Vfs {
             } else {
                 let old = old.file.borrow();
                 let host = match &old.node.borrow().data {
-                    Data::Host(path) if reopen => Some(File::open(path)?),
+                    Data::Host(path) if reopen && !old.node.borrow().is_dir() => {
+                        Some(File::open(path)?)
+                    }
                     _ => None,
                 };
                 let file = Rc::new(RefCell::new(OpenFile {

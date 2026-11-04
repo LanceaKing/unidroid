@@ -1,5 +1,4 @@
 use super::*;
-use std::os::unix::{ffi::OsStrExt, fs::MetadataExt};
 
 pub(super) fn normalize(path: &str) -> String {
     let mut parts = Vec::new();
@@ -77,6 +76,7 @@ impl Emulator {
         let mut host = self.rootfs.clone();
         let mut parts = path.split('/').filter(|part| !part.is_empty()).peekable();
         while let Some(part) = parts.next() {
+            host::validate_component(part)?;
             host.push(part);
             // A guest overlay directory can cover a host symlink. Never follow
             // that hidden host link when looking for lower-layer children.
@@ -178,9 +178,9 @@ impl Emulator {
         let host = self.rootfs_path(path)?;
         let metadata = std::fs::symlink_metadata(&host)?;
         if metadata.is_symlink() {
-            let target = std::fs::read_link(host)?.as_os_str().as_bytes().to_vec();
+            let target = host::link_bytes(&std::fs::read_link(host)?)?;
             return Ok(Node::new(Data::Symlink(target, metadata), 0o120777));
         }
-        Ok(Node::new(Data::Host(host), metadata.mode()))
+        Ok(Node::new(Data::Host(host), host::mode(&metadata)))
     }
 }

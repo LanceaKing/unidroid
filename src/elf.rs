@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, Weak},
 };
 
 pub(crate) struct Image {
@@ -106,16 +106,18 @@ impl Image {
         entry: Option<&str>,
         bytes: impl FnOnce() -> Result<Mmap>,
     ) -> Result<Arc<Self>> {
-        type ImageCache = HashMap<(PathBuf, Option<String>), Arc<Image>>;
+        // Release unused mappings so Windows can delete temporary libraries.
+        type ImageCache = HashMap<(PathBuf, Option<String>), Weak<Image>>;
         static IMAGES: OnceLock<Mutex<ImageCache>> = OnceLock::new();
         let load = || -> Result<Arc<Self>> {
             let key = (path.canonicalize()?, entry.map(str::to_owned));
             let mut cache = IMAGES.get_or_init(Default::default).lock().unwrap();
-            if let Some(image) = cache.get(&key) {
-                return Ok(image.clone());
+            if let Some(image) = cache.get(&key).and_then(Weak::upgrade) {
+                return Ok(image);
             }
             let image = Arc::new(Self::parse(bytes()?)?);
-            cache.insert(key, image.clone());
+            cache.retain(|_, image| image.strong_count() > 0);
+            cache.insert(key, Arc::downgrade(&image));
             Ok(image)
         };
         load().map_err(|error| {
