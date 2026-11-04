@@ -76,7 +76,7 @@ impl Emulator {
                 let perms = [(Prot::READ, 'r'), (Prot::WRITE, 'w'), (Prot::EXEC, 'x')]
                     .into_iter()
                     .map(|(bit, letter)| {
-                        if region.perms & bit.0 != 0 {
+                        if Prot(region.perms as _) & bit != Prot::NONE {
                             letter
                         } else {
                             '-'

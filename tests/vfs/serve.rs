@@ -44,7 +44,10 @@ fn serve_file_commands_work_before_load_and_report_errors() -> Result<()> {
         [
             json!({"error":"/lib/libdl.so: ENOENT"}),
             json!({"error":"Invalid symbol 33, offset 0."}),
-            json!({"error":"add_host_file /missing: tests/fixtures/no-file: No such file or directory (os error 2)"}),
+            json!({"error":format!(
+                "add_host_file /missing: tests/fixtures/no-file: {}",
+                std::path::Path::new("tests/fixtures/no-file").canonicalize().unwrap_err()
+            )}),
             json!({"error":"relative: EINVAL (path must be absolute)"}),
             json!({"error":"relative: EINVAL (path must be absolute)"}),
             json!({"error":"/config: EISDIR"}),

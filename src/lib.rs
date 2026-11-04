@@ -376,7 +376,7 @@ mod tests {
             .find(|region| region.begin == 0xffff0000)
             .unwrap();
         assert_eq!(region.end, 0xffff0fff);
-        assert_eq!(region.perms, (Prot::READ | Prot::EXEC).0);
+        assert_eq!(Prot(region.perms as _), Prot::READ | Prot::EXEC);
         Ok(())
     }
 

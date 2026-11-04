@@ -176,7 +176,7 @@ impl Emulator {
                 };
                 if self
                     .cpu_mut()?
-                    .mem_map(address, length, Prot(a[2] as u32))
+                    .mem_map(address, length, Prot(a[2] as _))
                     .is_err()
                 {
                     return Ok(errno(12));
@@ -203,7 +203,7 @@ impl Emulator {
                 address
             }
             226 => {
-                self.protect(a[0], a[1], Prot(a[2] as u32))?;
+                self.protect(a[0], a[1], Prot(a[2] as _))?;
                 0
             }
             _ => {

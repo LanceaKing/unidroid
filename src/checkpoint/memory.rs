@@ -35,7 +35,7 @@ impl Layout {
                 Self {
                     start: region.begin,
                     end: region.end + 1,
-                    perms: Prot(region.perms),
+                    perms: Prot(region.perms as _),
                     shared,
                 }
             })

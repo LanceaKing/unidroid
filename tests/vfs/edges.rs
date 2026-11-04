@@ -1,23 +1,21 @@
-use super::{TestRoot, call, errno};
+use super::{call, errno};
 use unidroid::{Emulator, Result};
 
 #[test]
 fn truncation_copies_host_metadata_without_reading_contents_and_rejects_generated_files()
 -> Result<()> {
-    use std::os::unix::fs::MetadataExt;
     for dir in ["lib64", "lib"] {
         let mut emu = Emulator::builder().build()?;
         let host = format!("rootfs/{dir}/libdl.so");
         emu.add_host_file("/linked", &host)?;
         let libc = emu.load_library(format!("rootfs/{dir}/libc.so"))?;
         let path = emu.new_cstring("/linked")?;
-        let fd = call(&mut emu, libc, "open", &[path, 0x201])?;
         let stat = emu.malloc(128)?;
+        assert_eq!(call(&mut emu, libc, "stat", &[path, stat])?, 0);
+        let original_mode = emu.read_bytes(stat + 16, 4)?;
+        let fd = call(&mut emu, libc, "open", &[path, 0x201])?;
         assert_eq!(call(&mut emu, libc, "fstat", &[fd, stat])?, 0);
-        assert_eq!(
-            emu.read_bytes(stat + 16, 4)?,
-            std::fs::metadata(&host)?.mode().to_le_bytes()
-        );
+        assert_eq!(emu.read_bytes(stat + 16, 4)?, original_mode);
         assert_eq!(emu.file("/linked")?, b"");
         for (path, expected) in [
             ("/proc/self/maps", 13),
@@ -69,7 +67,9 @@ fn writes_and_writev_share_the_io_limit_and_update_overlay_files() -> Result<()>
 }
 
 #[test]
+#[cfg(unix)]
 fn rootfs_links_report_target_text_and_directory_link_types() -> Result<()> {
+    use super::TestRoot;
     use std::os::unix::fs::symlink;
     for (dir, nr) in [("lib64", 61), ("lib", 217)] {
         let sandbox = TestRoot::new("rootfs-links")?;

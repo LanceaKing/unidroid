@@ -27,10 +27,11 @@ impl TestApk {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         std::fs::create_dir_all(&directory)?;
-        let apk = Self {
+        let mut apk = Self {
             path: directory.join("base.apk"),
         };
         apk.write(entries)?;
+        apk.path = apk.path.canonicalize()?;
         Ok(apk)
     }
 

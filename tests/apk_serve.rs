@@ -139,7 +139,9 @@ fn serve_updates_signers_and_history_without_partial_changes() -> Result<()> {
 #[test]
 fn recording_keeps_builder_apk_and_process_name_when_options_omit_them() -> Result<()> {
     let file = TestApk::manifest(&manifest::xml(true, &[package()]))?;
-    let relative = file.path.strip_prefix(env!("CARGO_MANIFEST_DIR"))?;
+    let relative = file
+        .path
+        .strip_prefix(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).canonicalize()?)?;
     let options = serde_json::from_value(json!({
         "rootfs":"rootfs", "apk":null, "process_name":null,
         "prop":[], "alias":[], "file":[], "superclass":[], "translation_cache_mb":8, "no_threads":false
@@ -273,7 +275,7 @@ fn recording_keeps_apk_argument_and_effective_process_name_for_replay() -> Resul
             ])?;
             let relative = file
                 .path
-                .strip_prefix(env!("CARGO_MANIFEST_DIR"))?
+                .strip_prefix(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).canonicalize()?)?
                 .to_str()
                 .unwrap();
             let record = file.path.with_file_name("record.jsonl");

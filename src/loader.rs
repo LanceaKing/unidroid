@@ -67,11 +67,14 @@ impl Emulator {
     }
     fn load_image(&mut self, library: Library) -> Result<Module> {
         let path = library.path();
-        let name = path
-            .file_name()
-            .ok_or_else(|| format!("cannot load {}: not a file path", path.display()))?
-            .to_string_lossy()
-            .into_owned();
+        let name = match &library {
+            Library::Apk { entry, .. } => entry.rsplit('/').next().unwrap().to_owned(),
+            Library::Host(_) => path
+                .file_name()
+                .ok_or_else(|| format!("cannot load {}: not a file path", path.display()))?
+                .to_string_lossy()
+                .into_owned(),
+        };
         let image = library.image()?;
         if self.uc.is_none() {
             self.setup_cpu(image.arch)?;
@@ -98,7 +101,9 @@ impl Emulator {
             let start = base + page_down(segment.p_vaddr);
             let end = base + page_up(segment.p_vaddr + segment.p_memsz);
             let permissions = Prot(
-                ((segment.p_flags & 4) >> 2) | (segment.p_flags & 2) | ((segment.p_flags & 1) << 2),
+                (((segment.p_flags & 4) >> 2)
+                    | (segment.p_flags & 2)
+                    | ((segment.p_flags & 1) << 2)) as _,
             );
             let private = segment.p_flags & 2 != 0
                 || image.relocations.iter().any(|r| {

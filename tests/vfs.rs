@@ -24,6 +24,7 @@ mod recording;
 mod serve;
 #[path = "vfs/stat.rs"]
 mod stat;
+#[cfg(unix)]
 #[path = "vfs/symlinks.rs"]
 mod symlinks;
 #[path = "vfs/trace.rs"]
@@ -142,7 +143,12 @@ fn host_files_work_before_loading_and_paths_are_normalized() -> Result<()> {
         emu.add_host_file("/missing", "tests/fixtures/no-file")
             .unwrap_err()
             .to_string(),
-        "add_host_file /missing: tests/fixtures/no-file: No such file or directory (os error 2)"
+        format!(
+            "add_host_file /missing: tests/fixtures/no-file: {}",
+            std::path::Path::new("tests/fixtures/no-file")
+                .canonicalize()
+                .unwrap_err()
+        )
     );
     emu.add_file("/parent", b"")?;
     assert_eq!(

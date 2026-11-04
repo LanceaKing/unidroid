@@ -146,10 +146,24 @@ fn getrandom_without_a_seed_returns_the_requested_count() -> Result<()> {
 
 #[test]
 fn stat_and_fstat_fix_metadata_and_hash_the_normalized_guest_path() -> Result<()> {
-    use std::os::unix::fs::MetadataExt;
     for arm64 in [true, false] {
         let mut emu = emulator(Emulator::builder().fixed_clock(-123), arm64)?;
         let metadata = std::fs::metadata("rootfs/lib/libc.so")?;
+        #[cfg(unix)]
+        let (mode, nlink, rdev) = {
+            use std::os::unix::fs::MetadataExt;
+            (metadata.mode(), metadata.nlink() as u32, metadata.rdev())
+        };
+        #[cfg(windows)]
+        let (mode, nlink, rdev) = (
+            if metadata.permissions().readonly() {
+                0o100444
+            } else {
+                0o100644
+            },
+            1,
+            0,
+        );
         let out = emu.malloc(144)?;
         for (path, inode) in [
             ("/lib/libc.so", 0x834e0abd3c3c269e),
@@ -170,19 +184,13 @@ fn stat_and_fstat_fix_metadata_and_hash_the_normalized_guest_path() -> Result<()
                 for (offset, expected) in [
                     (0, 0),
                     (if arm64 { 8 } else { 96 }, inode),
-                    (32, metadata.rdev()),
-                    (48, metadata.size()),
-                    (64, metadata.size().div_ceil(512)),
+                    (32, rdev),
+                    (48, metadata.len()),
+                    (64, metadata.len().div_ceil(512)),
                 ] {
                     assert_eq!(word(&emu, out + offset, 8)?, expected);
                 }
-                for (offset, expected) in [
-                    (16, metadata.mode()),
-                    (20, metadata.nlink() as u32),
-                    (24, 0),
-                    (28, 0),
-                    (56, 4096),
-                ] {
+                for (offset, expected) in [(16, mode), (20, nlink), (24, 0), (28, 0), (56, 4096)] {
                     assert_eq!(word(&emu, out + offset, 4)?, expected as u64);
                 }
                 if !arm64 {

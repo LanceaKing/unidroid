@@ -1,6 +1,6 @@
 use super::*;
 use crate::Architecture;
-use std::{fs::File, io::SeekFrom, os::unix::fs::MetadataExt};
+use std::{fs::File, io::SeekFrom};
 
 #[test]
 fn huge_random_counts_are_short_reads_with_a_linux_limit() -> Result<()> {
@@ -128,7 +128,9 @@ fn arm32_mmap2_uses_pages_and_pread64_uses_r4_r5_without_seeking() -> Result<()>
 }
 
 #[test]
+#[cfg(unix)]
 fn arm32_stat64_writes_both_inode_fields_and_32_bit_times() -> Result<()> {
+    use std::os::unix::fs::MetadataExt;
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(format!("target/stat32-{}", std::process::id()));
     std::fs::create_dir_all(&root)?;
